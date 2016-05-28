@@ -204,6 +204,7 @@ develop-eggs/
 
 Scripts/
 Lib/
+.ipynb_checkpoints/
 
 # Installer logs
 pip-log.txt

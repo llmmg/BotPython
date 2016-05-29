@@ -44,7 +44,7 @@ class Bot:
         return await self.sendText(helpMsg, channel_id, user_name, team_id)
 
     async def error(self, channel_id, user_name, team_id):
-        error = "Unknown input"
+        error = "Input error, please respect the syntax"
         return await self.sendText(error, channel_id, user_name, team_id)
 
     async def setVoteSubject(self, subject, user_name, team_id):
@@ -55,8 +55,11 @@ class Bot:
 
         choices = possibleRep.split(',')
         for emoj in choices:
+            if "=" not in emoj:
+                self.error
+                break
             emoj = emoj.split("=")
-            self.emojDef.update({emoj[0]: emoj[1]}) or self.error  # emojDef=reponses possible
+            self.emojDef.update({emoj[0]: emoj[1]})  # emojDef=reponses possible
         # output test
         print(self.emojDef)
 
@@ -67,12 +70,45 @@ class Bot:
         for chx in self.emojDef.keys():
             self.result.update({chx: self.votes.count(chx)})
 
+    # async def updateVars(self,message):
+    #     # ---TEST FUNCTION---
+    #
+    #     self.channel_id = message.get('channel')
+    #     channel_name = await api_call('channel.info', {'channel': message.get('channel')})
+    #
+    #     self.team_id = self.rtm['team']['id']
+    #     team_name = self.rtm['team']['name']
+    #
+    #     # a verifier si non inversé
+    #     user_id = message.get('user')
+    #     user_name = await api_call('users.info', {'user': message.get('user')})
+    #
+    #     bot_id = self.rtm['self']['id']
+    #     bot_name = self.rtm['self']['name']
+
     async def run(self, message):
         """do stuff with input msg"""
-        # si une réaction est ajoutée
-        if message.get('type')=='reaction_added':
-            if self.state=='vote':
-                print('vote de réaction')
+
+        # global
+        channel_id = message.get('channel')
+        channel_name = await api_call('channel.info', {'channel': message.get('channel')})
+
+        team_id = self.rtm['team']['id']
+        team_name = self.rtm['team']['name']
+
+        # a verifier si non inversé
+        user_id = message.get('user')
+        user_name = await api_call('users.info', {'user': message.get('user')})
+
+        bot_id = self.rtm['self']['id']
+        bot_name = self.rtm['self']['name']
+
+        # lors d'une réaction
+        if message.get('type') == 'reaction_added':
+            reaction = message.get('reaction')
+            print('reaction:', reaction)
+            if self.state == 'votes':
+                await self.vote(":" + reaction + ":", channel_id, user_name, team_id)
 
         # changement de presence
         if message.get('type') == 'presence_change':
@@ -80,22 +116,20 @@ class Bot:
 
         # si un message est reçu
         if message.get('type') == 'message':  # or message.get('type') == 'reaction_added':
-            channel_id = message.get('channel')
-            channel_name = await api_call('channel.info', {'channel': message.get('channel')})
-
-            team_id = self.rtm['team']['id']
-            team_name = self.rtm['team']['name']
-
-            # a verifier si non inversé
-            user_id = message.get('user')
-            user_name = await api_call('users.info', {'user': message.get('user')})
-
-            bot_id = self.rtm['self']['id']
-            bot_name = self.rtm['self']['name']
+            # channel_id = message.get('channel')
+            # channel_name = await api_call('channel.info', {'channel': message.get('channel')})
+            #
+            # team_id = self.rtm['team']['id']
+            # team_name = self.rtm['team']['name']
+            #
+            # # a verifier si non inversé
+            # user_id = message.get('user')
+            # user_name = await api_call('users.info', {'user': message.get('user')})
+            #
+            # bot_id = self.rtm['self']['id']
+            # bot_name = self.rtm['self']['name']
 
             message_text = message.get('text')
-            # test
-            # event = message.get('reaction')
 
             # if isinstance(message_text, str):
             #     # when the bot reply, his message is read and replied to.
@@ -129,7 +163,10 @@ class Bot:
                         self.state = 'setReponses'
 
                     elif self.state == 'setReponses':
+                        # input need to be handled if errors occurs or if input is false
                         await self.setVoteRep(message_text, user_name, team_id)
+                        # self.error(channel_id, user_name, team_id)
+
                         await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
 
                         for key, value in self.emojDef.items():
@@ -151,10 +188,12 @@ class Bot:
                                                     user_name, team_id)
 
                     elif self.state == 'voteClosed':
-                        if message_text == 'y':
+                        await self.sendText("Pas de vote en cours,nouveau vote?[y,n]", channel_id, user_name, team_id)
+                        if message_text == 'y' and not message.get('subtype') == 'bot_message':
                             await self.sendText("Quel est le sujet de votre vote?", channel_id, user_name, team_id)
                             self.state == 'subject'
-                        await self.sendText("Vote fermé, nouveau vote?[y,n]", channel_id, user_name, team_id)
+                        else:
+                            await self.sendText("d'accord, je reste en attente :slightly_smiling_face:", channel_id, user_name, team_id)
 
     async def connection(self):
         self.rtm = await api_call('rtm.start')

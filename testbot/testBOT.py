@@ -10,17 +10,17 @@ RUNNING = True
 
 
 # test
-class Vote:
-    def __init__(self, subject='noSubject'):
-        self.state = 'needASubject'
-        self.subject
-        self.rep = ()  # rep list
-
-    def setSubject(self, subject):
-        self.subject = subject
-
-    def addRep(self, rep):
-        self.rep = rep
+# class Vote:
+#     def __init__(self, subject='noSubject'):
+#         self.state = 'needASubject'
+#         self.subject
+#         self.rep = ()  # rep list
+#
+#     def setSubject(self, subject):
+#         self.subject = subject
+#
+#     def addRep(self, rep):
+#         self.rep = rep
 
 
 class Bot:
@@ -28,6 +28,9 @@ class Bot:
         self.token = token
         self.rtm = None
         self.state = "zero"
+        self.emojDef = {}  # votes possibilities + definitions
+        self.votes = []  # list of voted emoji
+        self.result = {}
 
     async def sendText(self, message, channel_id, user_name, team_id):
         return await api_call('chat.postMessage', {"type": "message",
@@ -37,24 +40,46 @@ class Bot:
                                                    "team": team_id})
 
     async def help(self, channel_id, user_name, team_id):
-        helpMsg = "bonjour!"
+        helpMsg = "Bienvenu sur le votebot!"
         return await self.sendText(helpMsg, channel_id, user_name, team_id)
+
+    async def error(self, channel_id, user_name, team_id):
+        error = "Unknown input"
+        return await self.sendText(error, channel_id, user_name, team_id)
 
     async def setVoteSubject(self, subject, user_name, team_id):
         self.subject = subject
 
     async def setVoteRep(self, possibleRep, user_name, team_id):
-        self.choices = possibleRep.split(',')
-        print("possibilities: ")
-        print(self.choices)
-        print(type(self.choices))
+        # {emoj:'def',emoj2:'def2'}
 
-    async def vote(self, voteName, voteEmoj):
-        print("in construction")
+        choices = possibleRep.split(',')
+        for emoj in choices:
+            emoj = emoj.split("=")
+            self.emojDef.update({emoj[0]: emoj[1]}) or self.error  # emojDef=reponses possible
+        # output test
+        print(self.emojDef)
+
+    async def vote(self, votedEmoji, channel_id, user_name, team_id):
+        self.votes.append(votedEmoji)
+
+    async def computeVote(self):
+        for chx in self.emojDef.keys():
+            self.result.update({chx: self.votes.count(chx)})
 
     async def run(self, message):
         """do stuff with input msg"""
-        if message.get('type') == 'message':
+        # si une réaction est ajoutée
+        if message.get('type')=='reaction_added':
+            if self.state=='vote':
+                print('vote de réaction')
+
+        # changement de presence
+        if message.get('type') == 'presence_change':
+            await self.sendText('hi!', 'G1CJ05D71', None, None)
+
+        # si un message est reçu
+        if message.get('type') == 'message':  # or message.get('type') == 'reaction_added':
             channel_id = message.get('channel')
             channel_name = await api_call('channel.info', {'channel': message.get('channel')})
 
@@ -69,6 +94,8 @@ class Bot:
             bot_name = self.rtm['self']['name']
 
             message_text = message.get('text')
+            # test
+            # event = message.get('reaction')
 
             # if isinstance(message_text, str):
             #     # when the bot reply, his message is read and replied to.
@@ -84,8 +111,7 @@ class Bot:
             #             message_split = message_text.split(':', 1)
             #             result = message_split[0].strip()
             #             print("return: ", result)
-            #
-            #             # if len(message_split)>0 and result =='<@{0}>'.format(bot_id):
+            # format(bot_id):
             #             #     core_text = message_split[1].strip()
             #             #     action = self.api.get(core_text) or self.error
             #             #     print(await action(channel_id, user_name, team_id))
@@ -94,25 +120,50 @@ class Bot:
                     if self.state == 'zero':
                         await self.sendText('what\'s your vote subject?', channel_id, user_name, team_id)
                         self.state = 'subject'
+
                     elif self.state == 'subject':
                         await self.setVoteSubject(message_text, user_name, team_id)
-                        await self.sendText('what\'s your vote\'s reponses? [emoji1 definition1, emoji2 definition2,...]', channel_id, user_name, team_id)
-                        self.state = 'reponses'
-                    elif self.state == 'reponses':
+                        await self.sendText(
+                            'what\'s your vote\'s reponses? [emoji1=definition1, emoji2=definition2,...]', channel_id,
+                            user_name, team_id)
+                        self.state = 'setReponses'
+
+                    elif self.state == 'setReponses':
                         await self.setVoteRep(message_text, user_name, team_id)
-                        await self.sendText(self.choices, channel_id, user_name, team_id)
+                        await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
+
+                        for key, value in self.emojDef.items():
+                            await self.sendText(key + "->" + value, channel_id,
+                                                user_name, team_id)
                         self.state = 'votes'
-                        # elif self.state == 'votes':
+
+                    elif self.state == 'votes':
+                        if not message_text == 'close vote':
+                            await self.vote(message_text, channel_id, user_name, team_id)
+                        else:
+                            self.state = 'voteClosed'
+                            await self.sendText("Fin du vote:" + self.subject, channel_id, user_name, team_id)
+                            await self.computeVote()
+                            await self.sendText("Resultat du vote:" + self.subject, channel_id, user_name, team_id)
+                            for vote, nb in self.result.items():
+                                await self.sendText("nombre de vote" + vote + self.emojDef[vote] + "=" + str(nb),
+                                                    channel_id,
+                                                    user_name, team_id)
+
+                    elif self.state == 'voteClosed':
+                        if message_text == 'y':
+                            await self.sendText("Quel est le sujet de votre vote?", channel_id, user_name, team_id)
+                            self.state == 'subject'
+                        await self.sendText("Vote fermé, nouveau vote?[y,n]", channel_id, user_name, team_id)
 
     async def connection(self):
-
         self.rtm = await api_call('rtm.start')
         assert self.rtm['ok'], self.rtm['error']
 
         with aiohttp.ClientSession() as client:
             async with client.ws_connect(self.rtm["url"]) as ws:
                 async for msg in ws:
-                    # assert msg.tp == aiohttp.MsgType.text
+                    assert msg.tp == aiohttp.MsgType.text
                     message = json.loads(msg.data)
                     print(message)
                     asyncio.ensure_future(self.run(message))

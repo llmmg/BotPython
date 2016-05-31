@@ -25,6 +25,8 @@ RUNNING = True
     -the bot create vote subject and responses only
     -   from the one who started the vote (=usable in noisy groups)
 """
+
+
 class Bot:
     def __init__(self, token=TOKEN):
         self.token = token
@@ -34,12 +36,27 @@ class Bot:
         self.votes = []  # list of voted emoji
         self.result = {}
 
+        # test
+        self.timestamp = None
+
     async def sendText(self, message, channel_id, user_name, team_id):
         return await api_call('chat.postMessage', {"type": "message",
                                                    "channel": channel_id,
                                                    # "text": "<@{0}> {1}".format(user_name["user"]["name"], message),
                                                    "text": message,
-                                                   "team": team_id})
+                                                   "team": team_id  # ,
+                                                   # "attachments": [
+                                                   #  {
+                                                   #     "text": ":bowtie:",
+                                                   #     "fields": [
+                                                   #         {
+                                                   #             "title": "test",
+                                                   #             "value": ":bowtie:",
+                                                   #             "short": "false"
+                                                   #         }
+                                                   #     ]
+                                                   # }]
+                                                   })
 
     async def help(self, channel_id, user_name, team_id):
         helpMsg = "Bienvenu sur le votebot!"
@@ -68,29 +85,15 @@ class Bot:
     async def vote(self, votedEmoji):
         self.votes.append(votedEmoji)
 
+    """**remove vote**
+    used when a reaction is removed"""
+
+    async def dessist(self, votedEmoji):
+        self.votes.remove(votedEmoji)
+
     async def computeVote(self):
         for chx in self.emojDef.keys():
             self.result.update({chx: self.votes.count(chx)})
-
-    # async def updateVars(self, message):
-    #     # ---TEST FUNCTION---
-    #
-    #     self.channel_id = message.get('channel')
-    #     self.channel_name = await api_call('channel.info', {'channel': message.get('channel')})
-    #
-    #     self.team_id = self.rtm['team']['id']
-    #     self.team_name = self.rtm['team']['name']
-    #
-    #     # a verifier si non inversé
-    #     self.user_id = message.get('user')
-    #     # get user's name
-    #     for userName in self.rtm['users']:
-    #         if userName['id'] == self.user_id:
-    #             print('user', userName['name'])
-    #             self.user_name = userName['name']
-    #
-    #     self.bot_id = self.rtm['self']['id']
-    #     self.bot_name = self.rtm['self']['name']
 
     async def run(self, message):
         """do stuff with input msg"""
@@ -108,106 +111,157 @@ class Bot:
             if userName['id'] == user_id:
                 print('user', userName['name'])
                 user_name = userName['name']
-        # if self.rtm['ok'] == 'True':
-        #     # print("test"+self.rtm['user'])
-        #     print("TESTETSEST")
 
         bot_id = self.rtm['self']['id']
         bot_name = self.rtm['self']['name']
 
-        # lors d'une réaction
+        # ----------When reaction is added--------------
         if message.get('type') == 'reaction_added':
+            # channel is in ['item']['channel']
+            channel_id = message.get('item')['channel']
+            channel_name = await api_call('channel.info', {'channel': channel_id})  # maybe useless
+            print(channel_id)
+
             reaction = message.get('reaction')
             print('reaction:', reaction)
+
             if self.state == 'votes':
+                # get msg timestamp's and add it emojis reactions
+                # self.timestamp = message.get('ts')
+                # print('channel', channel_id)
+                # for key, value in self.emojDef.items():
+                #     print(key)
+                #     print(await api_call('reactions.add', {'timestamp': self.timestamp,
+                #                                            'channel': channel_id,
+                #                                            'name': key[1:-1]}))
+
+                # add reaction emoji in votes
                 await self.vote(":" + reaction + ":")
+        elif message.get('type') == 'reaction_removed' and self.state == 'votes':
+            reaction = message.get('reaction')
+            await  self.dessist(":" + reaction + ":")
 
-        # changement de presence =>useless?
+        # changement de presence =>useless? (')>
         # if message.get('type') == 'presence_change':
-        #     # await self.sendText('hi!', 'G1CJ05D71', None, None)
-        #     await self.sendText('hi!',channel_id , None, None)
+        #     user_name=message.get('user')
+        #     #await self.sendText('hi!', 'G1CJ05D71', None, None)
+        #     await self.sendText('hi!',channel_id ,user_name,team_id)
 
-
-        # si un message est reçu
+        # received data is message type
         if message.get('type') == 'message':
-
             message_text = message.get('text')
 
-            # if isinstance(message_text, str):
-            #     # when the bot reply, his message is read and replied to.
-            #     # so if the input msg is not from the bot then the bot reply
-            #     # else not
-            #     if not message.get('subtype') == 'bot_message':
-            #         print("input: ", message_text)
-            #         if message_text == 'startVote':
-            #             self.initVote(user_name, team_id)
-            #
-            #         else:
-            #             print(await self.sendText(message_text + " unknow command", channel_id, user_name, team_id))
-            #             message_split = message_text.split(':', 1)
-            #             result = message_split[0].strip()
-            #             print("return: ", result)
-            # format(bot_id):
-            #             #     core_text = message_split[1].strip()
-            #             #     action = self.api.get(core_text) or self.error
-            #             #     print(await action(channel_id, user_name, team_id))
-            if isinstance(message_text, str):
+            # test
+            timestamp = message.get('ts')
+
+            if self.state == 'setReactions':
+                print('channel', channel_id)
+                for key, value in self.emojDef.items():
+                    print(key)
+                    print(await api_call('reactions.add', {'timestamp': timestamp,
+                                                           'channel': channel_id,
+                                                           'name': key[1:-1]}))
+                self.state = 'votes'
+
+            if message_text:
                 if not message.get('subtype') == 'bot_message':
+
                     if self.state == 'zero':
                         # if message is addressed to this
                         if message_text.split(':', 1)[0].strip() == '<@{0}>'.format(bot_id):
-                            await self.sendText('hi' + user_name + '!\nwhat\'s your vote subject?', channel_id,
-                                                user_name, team_id)
-                            self.state = 'subject'
+                            await self.sendText(
+                                'hi ' + user_name + '!\n Create your vote with [Vote subject]/[emoji1=definition1, emoji2=definition2,...]',
+                                channel_id,
+                                user_name, team_id)
+                            self.state = 'createVote'
 
-                    elif self.state == 'subject':
+                    # -----NEWS STATES TEST-> createVote / setReactions / votes / voteClosed / idleRenew
+                    elif self.state == 'createVote':
                         # if message is addressed to this
                         message_split = message_text.split(':', 1)
                         if message_split[0].strip() == '<@{0}>'.format(bot_id):
                             # take the part without the '@botname'
-                            await self.setVoteSubject(message_split[1].strip(), user_name, team_id)
-                            await self.sendText(
-                                'what\'s your vote\'s reponses? [emoji1=definition1, emoji2=definition2,...]',
-                                channel_id,
-                                user_name, team_id)
-                            self.state = 'setReponses'
+                            contain = message_split[1].strip().split('/', 1)
 
-                    elif self.state == 'setReponses':
-                        # if message is addressed to this
-                        message_split = message_text.split(':', 1)
-                        if message_split[0].strip() == '<@{0}>'.format(bot_id):
-                            # input need to be handled if errors occurs or if input is false
-                            await self.setVoteRep(message_split[1].strip(), user_name, team_id)
-                            # self.error(channel_id, user_name, team_id)
+                            subject = contain[0].strip()
+                            print(subject)
+                            responses = contain[1].strip()
+                            print(responses)
 
-                            await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
+                            await self.setVoteSubject(subject, user_name, team_id)
+                            await self.setVoteRep(responses, user_name, team_id)
+                            await self.sendText(self.subject, channel_id, user_name, team_id)
 
-                            for key, value in self.emojDef.items():
-                                await self.sendText(key + "->" + value, channel_id,
-                                                    user_name, team_id)
-                            self.state = 'votes'
+                            self.state = 'setReactions'
+                    # DEPRECATED
+                    # elif self.state == 'idleRenew':
+                    #     msg = message_text.split(':', 1)
+                    #     if msg[0].strip() == '<@{0}>'.format(bot_id):
+                    #         if msg[1].strip() == 'new vote':
+                    #             await self.sendText("Quel est le sujet de votre vote?", channel_id, user_name, team_id)
+                    #             self.state = 'createVote'
+                    #         else:
+                    #             await self.sendText("d'accord, je reste en attente :slightly_smiling_face:", channel_id,user_name, team_id)
+
+
+                    # -----END NEW STATES
+
+                    # # DEPRECATED
+                    # elif self.state == 'subject':
+                    #     # if message is addressed to this
+                    #     message_split = message_text.split(':', 1)
+                    #     if message_split[0].strip() == '<@{0}>'.format(bot_id):
+                    #         # take the part without the '@botname'
+                    #         await self.setVoteSubject(message_split[1].strip(), user_name, team_id)
+                    #         await self.sendText(
+                    #             'what\'s your vote\'s reponses? [emoji1=definition1, emoji2=definition2,...]',
+                    #             channel_id,
+                    #             user_name, team_id)
+                    #         self.state = 'setReponses'
+                    #
+                    # # DEPRECATED
+                    # elif self.state == 'setReponses':
+                    #     # if message is addressed to this
+                    #     message_split = message_text.split(':', 1)
+                    #
+                    #     if message_split[0].strip() == '<@{0}>'.format(bot_id):
+                    #         # input need to be handled if errors occurs or if input is false
+                    #         await self.setVoteRep(message_split[1].strip(), user_name, team_id)
+                    #         # self.error(channel_id, user_name, team_id)
+                    #
+                    #         await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
+                    #         for key, value in self.emojDef.items():
+                    #             await self.sendText(key + "->" + value, channel_id,
+                    #                                 user_name, team_id)
+                    #
+                    #         self.state = 'setReactions'
 
                     elif self.state == 'votes':
                         # if message is addressed to this
-                        msg = message_text.split(':', 1)
-                        if msg[0].strip() == '<@{0}>'.format(bot_id) and msg[1].strip() == 'close vote':
-                            self.state = 'voteClosed'
-                            await self.sendText("Fin du vote:" + self.subject, channel_id, user_name, team_id)
-                            await self.computeVote()
-                            await self.sendText("Resultat du vote:" + self.subject, channel_id, user_name, team_id)
-                            for vote, nb in self.result.items():
-                                await self.sendText("nombre de vote" + vote + self.emojDef[vote] + "=" + str(nb),
-                                                    channel_id,
-                                                    user_name, team_id)
 
-                    elif self.state == 'voteClosed':
-                        await self.sendText("Pas de vote en cours,nouveau vote?[y,n]", channel_id, user_name, team_id)
-                        if message_text == 'y' and not message.get('subtype') == 'bot_message':
-                            await self.sendText("Quel est le sujet de votre vote?", channel_id, user_name, team_id)
-                            self.state == 'subject'
-                        else:
-                            await self.sendText("d'accord, je reste en attente :slightly_smiling_face:", channel_id,
+                        await self.sendText("Fin du vote:" + self.subject, channel_id, user_name, team_id)
+                        await self.computeVote()
+                        await self.sendText("Resultat du vote:" + self.subject, channel_id, user_name, team_id)
+                        for vote, nb in self.result.items():
+                            await self.sendText("nombre de vote" + vote + self.emojDef[vote] + "=" + str(nb),
+                                                channel_id,
                                                 user_name, team_id)
+                        await self.sendText(
+                            "Pas de vote en cours, adressez vous à moi pour créer un nouveau vote :sunglasses::bar_chart:",
+                            channel_id, user_name,
+                            team_id)
+
+                        self.state = 'zero'
+
+                        # DEPRECATED
+                        # elif self.state == 'voteClosed':
+                        #     # if message is addressed to this
+                        #     msg = message_text.split(':', 1)
+                        #     if msg[0].strip() == '<@{0}>'.format(bot_id):
+                        #         await self.sendText("Pas de vote en cours, adressez vous à moi pour créer un nouveau vote :sunglasses::bar_chart:",
+                        #                             channel_id, user_name,
+                        #                             team_id)
+                        #         self.state = 'zero'
 
     async def connection(self):
         self.rtm = await api_call('rtm.start')

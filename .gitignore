@@ -220,6 +220,10 @@ pip-log.txt
 
 #Config files
 config.py
+pyvenv.cfg
+#Doc files
+_build/ 
+
 
 #Mr Developer
 .mr.developer.cfg

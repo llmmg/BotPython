@@ -1,7 +1,6 @@
 """Created by Lancelot Magnin
 Based on picbot's source code"""
 
-"""Sample Slack ping bot using asyncio and websockets."""
 import asyncio
 import json
 import aiohttp
@@ -17,21 +16,15 @@ RUNNING = True
 
 =>if a vote is created, the channel is the same for this instance
 =>the whole vote's life so, it stay in channel where it was created
+=>the vote object would do
+        -----**CANCELED**-----
 """
-# test
-class Vote:
-    def __init__(self, subject='noSubject'):
-        self.state = 'needASubject'
-        self.subject
-        self.rep = ()  # rep list
 
-    def setSubject(self, subject):
-        self.subject = subject
-
-    def addRep(self, rep):
-        self.rep = rep
-
-
+"""TO DO:
+    -the bot react only in his initied channel
+    -the bot create vote subject and responses only
+    -   from the one who started the vote (=usable in noisy groups)
+"""
 class Bot:
     def __init__(self, token=TOKEN):
         self.token = token
@@ -72,28 +65,32 @@ class Bot:
         # output test
         print(self.emojDef)
 
-    async def vote(self, votedEmoji, channel_id, user_name, team_id):
+    async def vote(self, votedEmoji):
         self.votes.append(votedEmoji)
 
     async def computeVote(self):
         for chx in self.emojDef.keys():
             self.result.update({chx: self.votes.count(chx)})
 
-    # async def updateVars(self,message):
+    # async def updateVars(self, message):
     #     # ---TEST FUNCTION---
     #
     #     self.channel_id = message.get('channel')
-    #     channel_name = await api_call('channel.info', {'channel': message.get('channel')})
+    #     self.channel_name = await api_call('channel.info', {'channel': message.get('channel')})
     #
     #     self.team_id = self.rtm['team']['id']
-    #     team_name = self.rtm['team']['name']
+    #     self.team_name = self.rtm['team']['name']
     #
     #     # a verifier si non inversé
-    #     user_id = message.get('user')
-    #     user_name = await api_call('users.info', {'user': message.get('user')})
+    #     self.user_id = message.get('user')
+    #     # get user's name
+    #     for userName in self.rtm['users']:
+    #         if userName['id'] == self.user_id:
+    #             print('user', userName['name'])
+    #             self.user_name = userName['name']
     #
-    #     bot_id = self.rtm['self']['id']
-    #     bot_name = self.rtm['self']['name']
+    #     self.bot_id = self.rtm['self']['id']
+    #     self.bot_name = self.rtm['self']['name']
 
     async def run(self, message):
         """do stuff with input msg"""
@@ -103,14 +100,14 @@ class Bot:
 
         team_id = self.rtm['team']['id']
         team_name = self.rtm['team']['name']
-        print('team_name=', team_name)
+        # print('team_name=', team_name)
 
         user_id = message.get('user')
         # get user's name
         for userName in self.rtm['users']:
             if userName['id'] == user_id:
                 print('user', userName['name'])
-                user_name=userName['name']
+                user_name = userName['name']
         # if self.rtm['ok'] == 'True':
         #     # print("test"+self.rtm['user'])
         #     print("TESTETSEST")
@@ -123,28 +120,16 @@ class Bot:
             reaction = message.get('reaction')
             print('reaction:', reaction)
             if self.state == 'votes':
-                await self.vote(":" + reaction + ":", channel_id, user_name, team_id)
+                await self.vote(":" + reaction + ":")
 
-        # changement de presence
-        if message.get('type') == 'presence_change':
-            # await self.sendText('hi!', 'G1CJ05D71', None, None)
-            await self.sendText('hi!',channel_id , None, None)
+        # changement de presence =>useless?
+        # if message.get('type') == 'presence_change':
+        #     # await self.sendText('hi!', 'G1CJ05D71', None, None)
+        #     await self.sendText('hi!',channel_id , None, None)
 
 
         # si un message est reçu
-        if message.get('type') == 'message':  # or message.get('type') == 'reaction_added':
-            # channel_id = message.get('channel')
-            # channel_name = await api_call('channel.info', {'channel': message.get('channel')})
-            #
-            # team_id = self.rtm['team']['id']
-            # team_name = self.rtm['team']['name']
-            #
-            # # a verifier si non inversé
-            # user_id = message.get('user')
-            # user_name = await api_call('users.info', {'user': message.get('user')})
-            #
-            # bot_id = self.rtm['self']['id']
-            # bot_name = self.rtm['self']['name']
+        if message.get('type') == 'message':
 
             message_text = message.get('text')
 
@@ -169,30 +154,43 @@ class Bot:
             if isinstance(message_text, str):
                 if not message.get('subtype') == 'bot_message':
                     if self.state == 'zero':
-                        await self.sendText('what\'s your vote subject?', channel_id, user_name, team_id)
-                        self.state = 'subject'
+                        # if message is addressed to this
+                        if message_text.split(':', 1)[0].strip() == '<@{0}>'.format(bot_id):
+                            await self.sendText('hi' + user_name + '!\nwhat\'s your vote subject?', channel_id,
+                                                user_name, team_id)
+                            self.state = 'subject'
 
                     elif self.state == 'subject':
-                        await self.setVoteSubject(message_text, user_name, team_id)
-                        await self.sendText(
-                            'what\'s your vote\'s reponses? [emoji1=definition1, emoji2=definition2,...]', channel_id,
-                            user_name, team_id)
-                        self.state = 'setReponses'
+                        # if message is addressed to this
+                        message_split = message_text.split(':', 1)
+                        if message_split[0].strip() == '<@{0}>'.format(bot_id):
+                            # take the part without the '@botname'
+                            await self.setVoteSubject(message_split[1].strip(), user_name, team_id)
+                            await self.sendText(
+                                'what\'s your vote\'s reponses? [emoji1=definition1, emoji2=definition2,...]',
+                                channel_id,
+                                user_name, team_id)
+                            self.state = 'setReponses'
 
                     elif self.state == 'setReponses':
-                        # input need to be handled if errors occurs or if input is false
-                        await self.setVoteRep(message_text, user_name, team_id)
-                        # self.error(channel_id, user_name, team_id)
+                        # if message is addressed to this
+                        message_split = message_text.split(':', 1)
+                        if message_split[0].strip() == '<@{0}>'.format(bot_id):
+                            # input need to be handled if errors occurs or if input is false
+                            await self.setVoteRep(message_split[1].strip(), user_name, team_id)
+                            # self.error(channel_id, user_name, team_id)
 
-                        await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
+                            await self.sendText(self.subject + "\nVotes possibles: ", channel_id, user_name, team_id)
 
-                        for key, value in self.emojDef.items():
-                            await self.sendText(key + "->" + value, channel_id,
-                                                user_name, team_id)
-                        self.state = 'votes'
+                            for key, value in self.emojDef.items():
+                                await self.sendText(key + "->" + value, channel_id,
+                                                    user_name, team_id)
+                            self.state = 'votes'
 
                     elif self.state == 'votes':
-                        if message_text == 'close vote':
+                        # if message is addressed to this
+                        msg = message_text.split(':', 1)
+                        if msg[0].strip() == '<@{0}>'.format(bot_id) and msg[1].strip() == 'close vote':
                             self.state = 'voteClosed'
                             await self.sendText("Fin du vote:" + self.subject, channel_id, user_name, team_id)
                             await self.computeVote()

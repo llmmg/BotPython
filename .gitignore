@@ -201,6 +201,8 @@ var/
 sdist/
 develop-eggs/
 .installed.cfg
+make.bat
+Makefile
 
 Scripts/
 Lib/

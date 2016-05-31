@@ -1,3 +1,6 @@
+"""Created by Lancelot Magnin
+Based on picbot's source code"""
+
 """Sample Slack ping bot using asyncio and websockets."""
 import asyncio
 import json
@@ -8,19 +11,25 @@ from config import DEBUG, TOKEN
 
 RUNNING = True
 
+"""
+**for multiple users at once**
+*just an idea...*
 
+=>if a vote is created, the channel is the same for this instance
+=>the whole vote's life so, it stay in channel where it was created
+"""
 # test
-# class Vote:
-#     def __init__(self, subject='noSubject'):
-#         self.state = 'needASubject'
-#         self.subject
-#         self.rep = ()  # rep list
-#
-#     def setSubject(self, subject):
-#         self.subject = subject
-#
-#     def addRep(self, rep):
-#         self.rep = rep
+class Vote:
+    def __init__(self, subject='noSubject'):
+        self.state = 'needASubject'
+        self.subject
+        self.rep = ()  # rep list
+
+    def setSubject(self, subject):
+        self.subject = subject
+
+    def addRep(self, rep):
+        self.rep = rep
 
 
 class Bot:
@@ -89,16 +98,22 @@ class Bot:
     async def run(self, message):
         """do stuff with input msg"""
 
-        # global
         channel_id = message.get('channel')
-        channel_name = await api_call('channel.info', {'channel': message.get('channel')})
+        channel_name = await api_call('channel.info', {'channel': channel_id})
 
         team_id = self.rtm['team']['id']
         team_name = self.rtm['team']['name']
+        print('team_name=', team_name)
 
-        # a verifier si non inversé
         user_id = message.get('user')
-        user_name = await api_call('users.info', {'user': message.get('user')})
+        # get user's name
+        for userName in self.rtm['users']:
+            if userName['id'] == user_id:
+                print('user', userName['name'])
+                user_name=userName['name']
+        # if self.rtm['ok'] == 'True':
+        #     # print("test"+self.rtm['user'])
+        #     print("TESTETSEST")
 
         bot_id = self.rtm['self']['id']
         bot_name = self.rtm['self']['name']
@@ -112,7 +127,9 @@ class Bot:
 
         # changement de presence
         if message.get('type') == 'presence_change':
-            await self.sendText('hi!', 'G1CJ05D71', None, None)
+            # await self.sendText('hi!', 'G1CJ05D71', None, None)
+            await self.sendText('hi!',channel_id , None, None)
+
 
         # si un message est reçu
         if message.get('type') == 'message':  # or message.get('type') == 'reaction_added':
@@ -175,9 +192,7 @@ class Bot:
                         self.state = 'votes'
 
                     elif self.state == 'votes':
-                        if not message_text == 'close vote':
-                            await self.vote(message_text, channel_id, user_name, team_id)
-                        else:
+                        if message_text == 'close vote':
                             self.state = 'voteClosed'
                             await self.sendText("Fin du vote:" + self.subject, channel_id, user_name, team_id)
                             await self.computeVote()
@@ -193,7 +208,8 @@ class Bot:
                             await self.sendText("Quel est le sujet de votre vote?", channel_id, user_name, team_id)
                             self.state == 'subject'
                         else:
-                            await self.sendText("d'accord, je reste en attente :slightly_smiling_face:", channel_id, user_name, team_id)
+                            await self.sendText("d'accord, je reste en attente :slightly_smiling_face:", channel_id,
+                                                user_name, team_id)
 
     async def connection(self):
         self.rtm = await api_call('rtm.start')

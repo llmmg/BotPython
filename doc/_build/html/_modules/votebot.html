@@ -1,0 +1,404 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>votebot &mdash; voteBotDoc 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="voteBotDoc 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for votebot</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Created by Lancelot Magnin \n</span>
+<span class="sd">    *Based on picbot&#39;s source code*</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">aiohttp</span>
+
+<span class="kn">from</span> <span class="nn">api</span> <span class="kn">import</span> <span class="n">api_call</span>
+<span class="kn">from</span> <span class="nn">config</span> <span class="kn">import</span> <span class="n">DEBUG</span><span class="p">,</span> <span class="n">TOKEN</span>
+
+<span class="n">RUNNING</span> <span class="o">=</span> <span class="bp">True</span>
+
+
+<div class="viewcode-block" id="Bot"><a class="viewcode-back" href="../index.html#votebot.Bot">[docs]</a><span class="k">class</span> <span class="nc">Bot</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">TOKEN</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">token</span> <span class="o">=</span> <span class="n">token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s2">&quot;zero&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># votes possibilities + definitions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">votes</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># list of voted emoji</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_name</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="bp">None</span></div>
+
+
+<div class="viewcode-block" id="sendText"><a class="viewcode-back" href="../index.html#votebot.sendText">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">sendText</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This function send text in the chat&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">await</span> <span class="n">api_call</span><span class="p">(</span><span class="s1">&#39;chat.postMessage&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;message&quot;</span><span class="p">,</span>
+                                               <span class="s2">&quot;channel&quot;</span><span class="p">:</span> <span class="n">channel_id</span><span class="p">,</span>
+                                               <span class="c1"># &quot;text&quot;: &quot;&lt;@{0}&gt; {1}&quot;.format(user_name[&quot;user&quot;][&quot;name&quot;], message),</span>
+                                               <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
+                                               <span class="s2">&quot;team&quot;</span><span class="p">:</span> <span class="n">team_id</span>  <span class="c1"># ,</span>
+                                               <span class="c1"># &quot;attachments&quot;: [</span>
+                                               <span class="c1">#  {</span>
+                                               <span class="c1">#     &quot;text&quot;: &quot;:bowtie:&quot;,</span>
+                                               <span class="c1">#     &quot;fields&quot;: [</span>
+                                               <span class="c1">#         {</span>
+                                               <span class="c1">#             &quot;title&quot;: &quot;test&quot;,</span>
+                                               <span class="c1">#             &quot;value&quot;: &quot;:bowtie:&quot;,</span>
+                                               <span class="c1">#             &quot;short&quot;: &quot;false&quot;</span>
+                                               <span class="c1">#         }</span>
+                                               <span class="c1">#     ]</span>
+                                               <span class="c1"># }]</span>
+                                               <span class="p">})</span></div>
+
+
+<div class="viewcode-block" id="help"><a class="viewcode-back" href="../index.html#votebot.help">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">help</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Help message function&quot;&quot;&quot;</span>
+    <span class="n">helpMsg</span> <span class="o">=</span> <span class="s2">&quot;Bienvenu sur le votebot!</span><span class="se">\n</span><span class="s2">&quot;</span> \
+              <span class="s2">&quot;Pour commencer un vote, il suffit de m&#39;envoyer la commande &#39;create vote&#39;,&quot;</span> \
+              <span class="s2">&quot; Un sujet de vote + reponses possibles vous serra alors demandé.</span><span class="se">\n</span><span class="s2">&quot;</span> \
+              <span class="s2">&quot;Pour clore le vote, il faut m&#39;envoyer la commande </span><span class="se">\&quot;</span><span class="s2">close vote</span><span class="se">\&quot;\n</span><span class="s2">&quot;</span> \
+              <span class="s2">&quot;Une fois un vote fermé, on peut en créer un nouveau avec la commande </span><span class="se">\&quot;</span><span class="s2">create vote</span><span class="se">\&quot;</span><span class="s2">&quot;</span>
+
+    <span class="k">return</span> <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span><span class="n">helpMsg</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="error"><a class="viewcode-back" href="../index.html#votebot.error">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">user_name</span><span class="p">,</span> <span class="n">team_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Error function, send an error message&quot;&quot;&quot;</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="s2">&quot;Input error, please respect the syntax&quot;</span>
+    <span class="k">return</span> <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="setVoteSubject"><a class="viewcode-back" href="../index.html#votebot.setVoteSubject">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">setVoteSubject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">user_name</span><span class="p">,</span> <span class="n">team_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set the question of the vote&quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">subject</span> <span class="o">=</span> <span class="n">subject</span></div>
+
+
+<div class="viewcode-block" id="setVoteRep"><a class="viewcode-back" href="../index.html#votebot.setVoteRep">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">setVoteRep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">possibleRep</span><span class="p">,</span> <span class="n">user_name</span><span class="p">,</span> <span class="n">team_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set the possible responses of the vote \n</span>
+<span class="sd">    - the votes possibilities are split by the &#39;=&#39;. \n</span>
+<span class="sd">    - emoji and definition are saved</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># {emoj:&#39;def&#39;,emoj2:&#39;def2&#39;}</span>
+
+    <span class="n">choices</span> <span class="o">=</span> <span class="n">possibleRep</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">emoj</span> <span class="ow">in</span> <span class="n">choices</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s2">&quot;=&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">emoj</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">error</span>
+            <span class="k">break</span>
+        <span class="n">emoj</span> <span class="o">=</span> <span class="n">emoj</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">emoj</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">emoj</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>  <span class="c1"># emojDef=reponses possible</span>
+    <span class="c1"># output test</span>
+    <span class="k">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="vote"><a class="viewcode-back" href="../index.html#votebot.vote">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">vote</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">voted_emoji</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Store a vote \n</span>
+<span class="sd">        **DEPRECATED** \n</span>
+<span class="sd">        - the votes aren&#39;t saved anymore. the number of reaction define the result of the vote</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">votes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">voted_emoji</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">votes</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">voted_emoji</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="dessist"><a class="viewcode-back" href="../index.html#votebot.dessist">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">dessist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">voted_emoji</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;remove vote \n</span>
+<span class="sd">    **DEPRECATED** same as vote function</span>
+<span class="sd">    - Used when a reaction is removed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">votes</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">voted_emoji</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="compute_vote"><a class="viewcode-back" href="../index.html#votebot.compute_vote">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">compute_vote</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Count the number of reactions \n</span>
+<span class="sd">    - Called when a vote is closed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">chx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">reactions</span> <span class="o">=</span> <span class="n">await</span> <span class="n">api_call</span><span class="p">(</span><span class="s1">&#39;reactions.get&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;channel&#39;</span><span class="p">:</span> <span class="n">channel_id</span><span class="p">,</span>
+                                                     <span class="s1">&#39;timestamp&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="p">})</span>
+        <span class="n">reactions</span> <span class="o">=</span> <span class="n">reactions</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">][</span><span class="s1">&#39;reactions&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">reactions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">chx</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="n">name</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">name</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+                <span class="n">reactions</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">reactions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">chx</span><span class="p">:</span> <span class="n">reactions</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]})</span></div>
+
+
+<div class="viewcode-block" id="get_user"><a class="viewcode-back" href="../index.html#votebot.get_user">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">get_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set the id and name of user from the received data&#39;s</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">user_id</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">)</span>
+    <span class="c1"># get user&#39;s name</span>
+    <span class="k">for</span> <span class="n">userName</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;users&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">userName</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_id</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">userName</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">user_name</span> <span class="o">=</span> <span class="n">userName</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../index.html#votebot.run">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Main Function</span>
+<span class="sd">        -------------</span>
+<span class="sd">        This function is called everytime a data is received trougth the connexion. \n</span>
+
+<span class="sd">        State machine</span>
+<span class="sd">        +++++++++++++</span>
+
+<span class="sd">        The vote process have four states:\n</span>
+<span class="sd">        - zero \n</span>
+<span class="sd">            * This state is the initial state of the bot. it wait the instruction of user. \n</span>
+<span class="sd">                *User can start the vote or get help command*.\n</span>
+<span class="sd">                 When create commande is insert, state switch to &#39;createVote&#39;</span>
+
+<span class="sd">        - createVote \n</span>
+<span class="sd">            * In this state, the bot ask user to give the subject and the emojis for the vote.</span>
+<span class="sd">                When user have define his vote, the state goes to setReactions</span>
+
+<span class="sd">        - setReactions\n</span>
+<span class="sd">            * The reaction are add to the slack message (in the chat...) so users can easily click to vote</span>
+<span class="sd">                go to state vote when all reactions have been added</span>
+
+<span class="sd">        - vote \n</span>
+<span class="sd">            * It wait the user to close the vote or ask for help command \n</span>
+<span class="sd">                When user close the vote, the state go to &#39;zero&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># ----------When reaction is added--------------</span>
+    <span class="c1">#  DEPRECATED ,adding votes in list &#39;vote&#39; is now useless</span>
+    <span class="c1"># =&gt;Count the nb of reaction in the interface</span>
+    <span class="c1"># ----------------------------------</span>
+    <span class="c1"># if message.get(&#39;type&#39;) == &#39;reaction_added&#39;:</span>
+    <span class="c1">#</span>
+    <span class="c1">#     # channel is in [&#39;item&#39;][&#39;channel&#39;]</span>
+    <span class="c1">#     channel_id = message.get(&#39;item&#39;)[&#39;channel&#39;]</span>
+    <span class="c1">#     # channel_name = await api_call(&#39;channel.info&#39;, {&#39;channel&#39;: channel_id})  # maybe useless</span>
+    <span class="c1">#     print(channel_id)</span>
+    <span class="c1">#</span>
+    <span class="c1">#     reaction = message.get(&#39;reaction&#39;)</span>
+    <span class="c1">#     print(&#39;reaction:&#39;, reaction)</span>
+    <span class="c1">#</span>
+    <span class="c1">#     # vote with reactions</span>
+    <span class="c1">#     if self.state == &#39;votes&#39;:</span>
+    <span class="c1">#         # add reaction emoji in votes</span>
+    <span class="c1">#         await self.vote(&quot;:&quot; + reaction + &quot;:&quot;)</span>
+    <span class="c1">#</span>
+    <span class="c1"># elif message.get(&#39;type&#39;) == &#39;reaction_removed&#39; and self.state == &#39;votes&#39;:</span>
+    <span class="c1">#     reaction = message.get(&#39;reaction&#39;)</span>
+    <span class="c1">#     await self.dessist(&quot;:&quot; + reaction + &quot;:&quot;)</span>
+
+    <span class="c1"># changement de presence =&gt;useless? (&#39;)&gt;</span>
+    <span class="c1"># if message.get(&#39;type&#39;) == &#39;presence_change&#39;:</span>
+    <span class="c1">#     user_name=message.get(&#39;user&#39;)</span>
+    <span class="c1">#     #await self.sendText(&#39;hi!&#39;, &#39;G1CJ05D71&#39;, None, None)</span>
+    <span class="c1">#     await self.sendText(&#39;hi!&#39;,channel_id ,user_name,team_id)</span>
+
+    <span class="c1"># if received data is message type</span>
+    <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;message&#39;</span><span class="p">:</span>
+
+        <span class="n">channel_id</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;channel&#39;</span><span class="p">)</span>
+        <span class="n">channel_name</span> <span class="o">=</span> <span class="n">await</span> <span class="n">api_call</span><span class="p">(</span><span class="s1">&#39;channel.info&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;channel&#39;</span><span class="p">:</span> <span class="n">channel_id</span><span class="p">})</span>
+
+        <span class="n">team_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;team&#39;</span><span class="p">][</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+        <span class="n">team_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;team&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
+        <span class="c1"># print(&#39;team_name=&#39;, team_name)</span>
+
+        <span class="n">bot_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;self&#39;</span><span class="p">][</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+        <span class="n">bot_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;self&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
+        <span class="n">message_text</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;text&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s1">&#39;setReactions&#39;</span><span class="p">:</span>
+            <span class="c1"># get timestamp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ts&#39;</span><span class="p">)</span>
+
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;channel&#39;</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">await</span> <span class="n">api_call</span><span class="p">(</span><span class="s1">&#39;reactions.add&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;timestamp&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">timestamp</span><span class="p">,</span>
+                                                       <span class="s1">&#39;channel&#39;</span><span class="p">:</span> <span class="n">channel_id</span><span class="p">,</span>
+                                                       <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]}))</span>  <span class="c1"># emoji&#39;s name without &#39;:&#39;</span>
+
+            <span class="c1"># now that reactions are displayed, people can votes</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s1">&#39;votes&#39;</span>
+
+        <span class="c1"># if it&#39;s not the bot who send messages</span>
+        <span class="k">if</span> <span class="n">message_text</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;subtype&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;bot_message&#39;</span><span class="p">:</span>
+            <span class="c1"># respond to help command</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="n">message_text</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;&lt;@{0}&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bot_id</span><span class="p">)</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;help&#39;</span><span class="p">:</span>
+                <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">help</span><span class="p">(</span><span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># state &#39;zero&#39; is the initial state where the bot &#39;wait&#39; for msg</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s1">&#39;zero&#39;</span><span class="p">:</span>
+                    <span class="c1"># Clear the vote before a new one is started</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">votes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+                    <span class="c1"># STORE THE USER NAME FOR THE WHOLE VOTE</span>
+                    <span class="c1"># =&gt; WILL REACT ONLY WITH THIS USER (vote subject and close vote)</span>
+                    <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_user</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+                    <span class="c1"># if message is addressed to the bot and message is &#39;create vote&#39;</span>
+                    <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;&lt;@{0}&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bot_id</span><span class="p">)</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;create vote&#39;</span><span class="p">:</span>
+                        <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span>
+                            <span class="s1">&#39;hi &#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_name</span> <span class="o">+</span> <span class="s1">&#39;!</span><span class="se">\n</span><span class="s1"> Create your vote with [Vote subject]/[emoji1=definition1,&#39;</span>
+                                                     <span class="s1">&#39; emoji2=definition2,...]&#39;</span><span class="p">,</span>
+                            <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s1">&#39;createVote&#39;</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># if command is wrong, call the help</span>
+                        <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">help</span><span class="p">(</span><span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+
+                <span class="c1"># user create a vote (question+emotes...)</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s1">&#39;createVote&#39;</span><span class="p">:</span>
+                    <span class="c1"># if message is addressed to the bot</span>
+                    <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;&lt;@{0}&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bot_id</span><span class="p">):</span>
+                        <span class="c1"># if it&#39;s the same user as the one in &#39;zero&#39; state</span>
+                        <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_id</span><span class="p">:</span>
+                            <span class="c1"># take the part without the &#39;@botname&#39;</span>
+                            <span class="n">contain</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+                            <span class="n">subject</span> <span class="o">=</span> <span class="n">contain</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                            <span class="k">print</span><span class="p">(</span><span class="n">subject</span><span class="p">)</span>
+                            <span class="n">responses</span> <span class="o">=</span> <span class="n">contain</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                            <span class="k">print</span><span class="p">(</span><span class="n">responses</span><span class="p">)</span>
+
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">setVoteSubject</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_name</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">setVoteRep</span><span class="p">(</span><span class="n">responses</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_name</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+
+                            <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s1">&#39;setReactions&#39;</span>
+
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s1">&#39;votes&#39;</span><span class="p">:</span>
+
+                    <span class="c1"># if message is addressed to the bot</span>
+                    <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;&lt;@{0}&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bot_id</span><span class="p">):</span>
+
+                        <span class="c1"># check that&#39;s the user who created the vote speaking</span>
+                        <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;user&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_id</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;close vote&#39;</span><span class="p">:</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span><span class="s2">&quot;Fin du vote:&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_vote</span><span class="p">(</span><span class="n">channel_id</span><span class="p">)</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span><span class="s2">&quot;Resultat du vote:&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">vote</span><span class="p">,</span> <span class="n">nb</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                                <span class="k">print</span><span class="p">(</span><span class="n">nb</span><span class="p">)</span>
+                                <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span>
+                                    <span class="s2">&quot;nombre de vote&quot;</span> <span class="o">+</span> <span class="n">vote</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">emojDef</span><span class="p">[</span><span class="n">vote</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;=&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">nb</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                                    <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">sendText</span><span class="p">(</span>
+                                <span class="s2">&quot;Pas de vote en cours,&quot;</span>
+                                <span class="s2">&quot; adressez vous à moi pour créer un nouveau vote :sunglasses::bar_chart:&quot;</span><span class="p">,</span>
+                                <span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span>
+
+                            <span class="bp">self</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="s1">&#39;zero&#39;</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">help</span><span class="p">(</span><span class="n">channel_id</span><span class="p">,</span> <span class="n">team_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="connection"><a class="viewcode-back" href="../index.html#votebot.connection">[docs]</a><span class="n">async</span> <span class="k">def</span> <span class="nf">connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Connect bot to Slack&quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span> <span class="o">=</span> <span class="n">await</span> <span class="n">api_call</span><span class="p">(</span><span class="s1">&#39;rtm.start&#39;</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;ok&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s1">&#39;error&#39;</span><span class="p">]</span>
+
+    <span class="k">with</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="n">async</span> <span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">ws_connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtm</span><span class="p">[</span><span class="s2">&quot;url&quot;</span><span class="p">])</span> <span class="k">as</span> <span class="n">ws</span><span class="p">:</span>
+            <span class="n">async</span> <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">ws</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">msg</span><span class="o">.</span><span class="n">tp</span> <span class="o">==</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">MsgType</span><span class="o">.</span><span class="n">text</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+                <span class="n">asyncio</span><span class="o">.</span><span class="n">ensure_future</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">message</span><span class="p">))</span></div>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">set_debug</span><span class="p">(</span><span class="n">DEBUG</span><span class="p">)</span>
+    <span class="n">bot</span> <span class="o">=</span> <span class="n">Bot</span><span class="p">(</span><span class="n">TOKEN</span><span class="p">)</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">bot</span><span class="o">.</span><span class="n">connection</span><span class="p">())</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Lancelot Magnin.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

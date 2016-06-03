@@ -222,7 +222,12 @@ pip-log.txt
 config.py
 pyvenv.cfg
 #Doc files
-_build/ 
+conf.py
+index.rst
+make.bat
+Makefile
+_templates
+_static
 
 
 #Mr Developer
